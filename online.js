@@ -433,6 +433,8 @@
     onAch() { if (O.profile) { clearTimeout(statT); statT = setTimeout(syncStats, 2000); } },
     pushInfo: () => ({ supported: pushOK(), ios: isIOS && !standalone, signedIn: !!O.profile, denied: 'Notification' in window && Notification.permission === 'denied', on: O.push.on, busy: O.push.busy, hour: REM.hour == null ? 19 : REM.hour }),
     enablePush, disablePush,
+    // Anonymous play statistics (see privacy.html): fire and forget, failures are ignored
+    logEvents(rows) { sb.from('play_events').insert(rows).then(() => {}, () => {}); },
     // "Report a problem": works signed in or not; signed-in reports carry the username
     async sendReport(r) {
       const { error } = await sb.from('reports').insert({ user_id: O.user ? O.user.id : null, subject: r.subject, kind: r.kind, note: r.note || null, context: r.context || null });

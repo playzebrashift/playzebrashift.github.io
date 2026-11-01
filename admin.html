@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Zebra Shift stats</title>
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* The game's colours. --data is the chart colour, checked for contrast and saturation on each surface. */
+:root{--bg:#E8EEED;--panel:#F8FBFA;--ink:#102127;--muted:#566B70;--line:#C6D4D3;--grid:#DDE6E5;--data:#008C99;--teal:#1C6973;--teal-ink:#fff;--alarm:#BE3329;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;--f-body:"Atkinson Hyperlegible",system-ui,sans-serif;--f-mono:"JetBrains Mono",ui-monospace,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0D181B;--panel:#142328;--ink:#E2EDEB;--muted:#8EA4A8;--line:#283C41;--grid:#20343A;--data:#14A3AF;--teal:#3FA3AE;--teal-ink:#06181b;--alarm:#F0665B}}
+:root[data-theme="dark"]{--bg:#0D181B;--panel:#142328;--ink:#E2EDEB;--muted:#8EA4A8;--line:#283C41;--grid:#20343A;--data:#14A3AF;--teal:#3FA3AE;--teal-ink:#06181b;--alarm:#F0665B}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--f-body)}
+main{max-width:1180px;margin:0 auto;padding:16px 16px 48px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 18px}
+.brand{display:flex;align-items:center;gap:10px}.brand h1{font:800 26px/1.1 var(--f-display);letter-spacing:-.02em;margin:0}
+.brand small{display:block;color:var(--muted);font-size:13px}
+.ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;background:var(--panel);color:var(--ink);font:700 14px var(--f-body);padding:8px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--teal);color:var(--teal-ink)}
+.btn{border:1.5px solid var(--line);background:var(--panel);color:var(--ink);font:700 14px var(--f-body);padding:8px 12px;border-radius:10px;cursor:pointer}
+.btn.primary{background:var(--teal);border-color:var(--teal);color:var(--teal-ink)}
+h2{font:700 20px var(--f-display);margin:28px 0 10px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.tile .k{font-size:13px;color:var(--muted);font-weight:700}
+.tile .v{font:800 30px/1.15 var(--f-display);letter-spacing:-.02em;margin-top:2px}
+.tile .s{font-size:12.5px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:12px;margin-top:12px}
+figure.chart{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 14px 10px;min-width:0}
+figure.chart figcaption{font:700 15px var(--f-body);margin-bottom:2px}
+figure.chart .sub{font-size:12.5px;color:var(--muted);margin:0 0 8px}
+figure.chart svg{display:block;width:100%;max-width:720px;margin:0 auto;height:auto;overflow:visible}
+a{color:var(--teal)}
+.axis text{font:11px var(--f-mono);fill:var(--muted)}
+.gridline{stroke:var(--grid);stroke-width:1}
+.bar{fill:var(--data)}
+.hit{fill:transparent;cursor:default}
+.hit:hover+.bar,.bar.on{filter:brightness(1.15)}
+.hlabel{font:13px var(--f-body);fill:var(--ink)}.hval{font:12px var(--f-mono);fill:var(--muted)}
+details{margin-top:6px}summary{cursor:pointer;color:var(--muted);font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-top:6px}th,td{text-align:left;padding:3px 6px;border-bottom:1px solid var(--line)}td.n{text-align:right;font-family:var(--f-mono)}
+.empty{color:var(--muted);font-size:14px;padding:22px 0;text-align:center}
+#tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--bg);font:13px var(--f-body);padding:5px 8px;border-radius:8px;opacity:0;transition:opacity .08s;z-index:10;white-space:nowrap}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;max-width:520px;margin:40px auto}
+.card h2{margin-top:0}.card input{width:100%;font:16px var(--f-body);padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);margin:6px 0 10px}
+.card code,pre{font:13px var(--f-mono);background:var(--bg);border-radius:8px}pre{padding:10px;overflow-x:auto;white-space:pre-wrap}
+.msg{color:var(--muted)}.err{color:var(--alarm)}
+.demo{background:var(--teal);color:var(--teal-ink);border-radius:10px;padding:8px 12px;font-weight:700;margin-bottom:12px}
+</style>
+</head>
+<body>
+<main id="app"><p class="msg">Loading…</p></main>
+<div id="tip" role="tooltip"></div>
+<script src="vendor/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(() => {
+const $ = s => document.querySelector(s), app = $('#app'), tip = $('#tip');
+const C = window.ZS_CONFIG || {}, DEMO = new URLSearchParams(location.search).has('demo');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = n => n == null ? '—' : Number(n).toLocaleString('en-GB');
+const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
+let sb = null, days = 30, email = '', codeSent = false;
+if (!DEMO && C.supabaseUrl && window.supabase) sb = window.supabase.createClient(C.supabaseUrl, C.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+
+// ---- tooltips: one floating label, shown for any element with data-tip
+addEventListener('pointermove', e => {
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if (!t) { tip.style.opacity = 0; return; }
+  tip.textContent = t.dataset.tip; tip.style.opacity = 1;
+  const w = tip.offsetWidth; tip.style.left = Math.min(innerWidth - w - 8, Math.max(8, e.clientX - w / 2)) + 'px'; tip.style.top = (e.clientY - 38) + 'px';
+});
+
+// ---- charts: thin bars with a rounded data end, a recessive grid and a table view
+// axis top and step on a 1-2-5 scale, so ticks read 0, 20, 40… rather than 0, 13, 25…
+const niceStep = v => { const p = Math.pow(10, Math.floor(Math.log10(Math.max(v, 1)))), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; };
+const topRounded = (x, y, w, h, r = 4) => { r = Math.min(r, w / 2, h); return `M${x} ${y + h}V${y + r}Q${x} ${y} ${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y + h}Z`; };
+const rightRounded = (x, y, w, h, r = 4) => { r = Math.min(r, h / 2, w); return `M${x} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y + h - r}Q${x + w} ${y + h} ${x + w - r} ${y + h}H${x}Z`; };
+function table(rows, head) { return `<details><summary>Show as a table</summary><table><thead><tr><th>${esc(head[0])}</th><th style="text-align:right">${esc(head[1])}</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.label)}</td><td class="n">${fmt(r.value)}</td></tr>`).join('')}</tbody></table></details>`; }
+// columns: rows [{label, value, tip}], every nth label shown on the x axis
+function columns(title, sub, rows, unit, head) {
+  const total = rows.reduce((a, r) => a + (+r.value || 0), 0);
+  if (!total) return `<figure class="chart"><figcaption>${esc(title)}</figcaption><p class="sub">${esc(sub)}</p><div class="empty">No data yet</div></figure>`;
+  const W = narrow() ? 380 : 640, H = narrow() ? 200 : 220, L = 40, B = 24, T = 8, n = rows.length, top = Math.max(...rows.map(r => +r.value || 0)), step = niceStep(top / 4), max = Math.max(step, Math.ceil(top / step) * step), bw = (W - L) / n, gap = Math.min(2, bw * .25);
+  const every = Math.ceil(n / (narrow() ? 5 : 8)), y = v => T + (H - T - B) * (1 - v / max);
+  let g = '';
+  for (let v = 0; v <= max + 1e-9; v += step) { const yy = y(v); g += `<line class="gridline" x1="${L}" x2="${W}" y1="${yy}" y2="${yy}"/><text x="${L - 6}" y="${yy + 4}" text-anchor="end">${fmt(Math.round(v))}</text>`; }
+  rows.forEach((r, k) => {
+    const x = L + k * bw + gap / 2, w = Math.max(1, bw - gap), v = +r.value || 0, yy = y(v), h = H - B - yy;
+    const t = r.tip || `${r.label}: ${fmt(v)}${unit ? ' ' + unit : ''}`;
+    g += `<rect class="hit" x="${L + k * bw}" y="${T}" width="${bw}" height="${H - T - B}" data-tip="${esc(t)}"/>`;
+    if (v > 0) g += `<path class="bar" d="${topRounded(x, yy, w, Math.max(h, 1))}" data-tip="${esc(t)}"/>`;
+    if (k % every === 0) g += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${esc(r.short || r.label)}</text>`;
+  });
+  return `<figure class="chart"><figcaption>${esc(title)}</figcaption><p class="sub">${esc(sub)}</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}"><g class="axis">${g}</g></svg>${table(rows, head)}</figure>`;
+}
+// horizontal bars, largest first, each labelled with its value
+function bars(title, sub, obj, unit, head, names = {}) {
+  const rows = Object.entries(obj || {}).map(([k, v]) => ({ label: names[k] || k, value: +v || 0 })).filter(r => r.value > 0).sort((a, b) => b.value - a.value);
+  if (!rows.length) return `<figure class="chart"><figcaption>${esc(title)}</figcaption><p class="sub">${esc(sub)}</p><div class="empty">No data yet</div></figure>`;
+  const W = narrow() ? 380 : 640, row = 30, L = narrow() ? 120 : 150, R = 74, H = rows.length * row, max = Math.max(...rows.map(r => r.value)), total = rows.reduce((a, r) => a + r.value, 0);
+  let g = '';
+  rows.forEach((r, k) => {
+    const y = k * row + 5, w = Math.max(2, (W - L - R) * r.value / max), t = `${r.label}: ${fmt(r.value)}${unit ? ' ' + unit : ''} (${pct(r.value, total)})`;
+    g += `<text class="hlabel" x="${L - 10}" y="${y + 15}" text-anchor="end">${esc(r.label)}</text><rect class="hit" x="0" y="${y - 3}" width="${W}" height="${row}" data-tip="${esc(t)}"/>
+      <path class="bar" d="${rightRounded(L, y, w, 20)}" data-tip="${esc(t)}"/><text class="hval" x="${L + w + 6}" y="${y + 15}">${fmt(r.value)} · ${pct(r.value, total)}</text>`;
+  });
+  return `<figure class="chart"><figcaption>${esc(title)}</figcaption><p class="sub">${esc(sub)}</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}">${g}</svg>${table(rows, head)}</figure>`;
+}
+const narrow = () => innerWidth < 640;
+const tile = (k, v, s = '') => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${v}</div>${s ? `<div class="s">${esc(s)}</div>` : ''}</div>`;
+const dayLabel = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+const AREA = { floor: 'ER floor', staff: 'Staff Room', requisition: 'Requisition', emergency: 'Emergencies', loadout: 'Loadout', casebook: 'Casebook', department: 'Department', menu: 'Main menu',
+  'zebra hunt': 'Zebra Hunt', 'daily case': 'Case of the day', 'reading room': 'Reading room', creator: 'Doctor creator', challenge: 'Challenges', 'written case': 'Written cases', online: 'Friends & leaderboards' };
+const DIFF = { student: 'Medical Student', intern: 'Intern', resident: 'Resident', attending: 'Attending' };
+
+let last = null, wasNarrow = narrow();
+addEventListener('resize', () => { if (last && narrow() !== wasNarrow) { wasNarrow = narrow(); render(last); } });
+function render(s) {
+  last = s;
+  const T = s.totals || {}, R = s.retention || {}, runs = s.runs || {}, hunt = s.hunt || {}, dc = s.daily_case || {}, daily = s.daily || [];
+  const range = `last ${s.days} days`, when = new Date(s.generated || Date.now()).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const per = (k, unit) => daily.map(d => ({ label: dayLabel(d.day), value: d[k], tip: `${dayLabel(d.day)}: ${fmt(d[k])} ${unit}` }));
+  const num = (obj, n0, n1, lab) => Array.from({ length: n1 - n0 + 1 }, (_, k) => { const i = n0 + k; return { label: lab(i), value: (obj || {})[i] || 0 }; });
+  app.innerHTML = `${DEMO ? '<div class="demo">Demo data: these numbers are made up to show the layout. Remove ?demo from the address to see real stats.</div>' : ''}
+  <header class="top"><div class="brand"><img src="icons/favicon.svg" alt="" width="36" height="36"><div><h1>Zebra Shift stats</h1><small>Updated ${when} · days counted in WIB · anonymous counts, no personal data</small></div></div>
+   <div class="ctrl"><div class="seg" role="group" aria-label="Date range">${[7, 30, 90].map(d => `<button data-days="${d}" aria-pressed="${d === days}">${d} days</button>`).join('')}</div>
+   <button class="btn" data-act="refresh">Refresh</button>${DEMO ? '' : '<button class="btn" data-act="signout">Sign out</button>'}</div></header>
+  <h2>Players</h2>
+  <div class="tiles">${tile('Active today', fmt(T.dau), 'devices in the last 24 hours')}${tile('Active this week', fmt(T.wau), 'last 7 days')}${tile('Active this month', fmt(T.mau), 'last 30 days')}
+   ${tile('New players', fmt(T.new), range)}${tile('All-time players', fmt(T.devices), 'devices that ever played')}${tile('Accounts', fmt(T.accounts), 'signed in for leaderboards')}</div>
+  <div class="grid2">${columns('Active players per day', range, per('active', 'players'), 'players', ['Day', 'Players'])}${columns('New players per day', 'first visit on that day', per('new', 'new players'), 'new players', ['Day', 'New players'])}</div>
+  <h2>Play time</h2>
+  <div class="tiles">${tile('Time played', fmt(Math.round((T.minutes || 0) / 60)) + '<small style="font-size:16px"> h</small>', range)}${tile('Average visit', (T.avg_session_min ?? '—') + '<small style="font-size:16px"> min</small>', 'per session')}
+   ${tile('Visits', fmt(T.sessions), range)}${tile('Came back next day', pct(R.d1_back, R.d1_cohort), `of ${fmt(R.d1_cohort)} new players`)}${tile('Came back after a week', pct(R.d7_back, R.d7_cohort), `of ${fmt(R.d7_cohort)} new players`)}
+   ${tile('Installed app', T.installed_pct == null ? '—' : T.installed_pct + '%', 'of players who opened it')}</div>
+  <div class="grid2">${columns('Minutes played per day', range, per('minutes', 'minutes'), 'minutes', ['Day', 'Minutes'])}${bars('Where the time goes', 'minutes spent in each part of the game, ' + range, s.areas, 'min', ['Area', 'Minutes'], AREA)}</div>
+  <div class="grid2">${columns('When people play', 'minutes by hour of the day (WIB), ' + range, (s.hours || []).map((v, h) => ({ label: String(h).padStart(2, '0') + ':00', short: String(h), value: v, tip: `${String(h).padStart(2, '0')}:00–${String(h).padStart(2, '0')}:59: ${fmt(v)} minutes` })), 'minutes', ['Hour', 'Minutes'])}</div>
+  <h2>In the game</h2>
+  <div class="tiles">${tile('Runs started', fmt(runs.started), range)}${tile('Runs finished', fmt(runs.finished), 'reached the end screen')}${tile('Average shift reached', runs.avg_shift ?? '—', 'per finished run')}
+   ${tile('Average run', (runs.avg_minutes ?? '—') + '<small style="font-size:16px"> min</small>', 'start to end screen')}${tile('New careers', fmt(s.careers), range)}
+   ${tile('Zebra Hunts', fmt(hunt.played), hunt.avg == null ? range : `average ${hunt.avg} of 7`)}${tile('Cases of the day', fmt(dc.played), dc.played ? `${pct(dc.won, dc.played)} solved · average ${fmt(dc.avg_score)} pts` : range)}</div>
+  <div class="grid2">${columns('How far runs get', 'finished runs by the shift reached, ' + range, num(s.shifts, 1, 10, i => i === 10 ? '10+' : String(i)).map(r => ({ ...r, tip: `Shift ${r.label}: ${fmt(r.value)} runs` })), 'runs', ['Shift reached', 'Runs'])}
+   ${columns('Zebra Hunt scores', 'out of 7, ' + range, num(s.hunt_scores, 0, 7, i => String(i)).map(r => ({ ...r, tip: `${r.label} of 7: ${fmt(r.value)} hunts` })), 'hunts', ['Score', 'Hunts'])}</div>
+  <div class="grid2">${bars('Difficulty chosen', 'runs started, ' + range, s.diffs, 'runs', ['Difficulty', 'Runs'], DIFF)}${bars('Specialty', 'runs started, ' + range, s.specs, 'runs', ['Specialty', 'Runs'])}</div>`;
+}
+
+// ---- sign-in and loading
+function card(html) { app.innerHTML = `<div class="card">${html}</div>`; }
+function showSignIn(msg = '') {
+  card(`<h2>Zebra Shift stats</h2><p class="msg">Sign in with the account you added as an admin. The stats are only shown to admin accounts.</p>
+    ${codeSent ? `<form data-form="code"><label for="code">Code from the email sent to ${esc(email)}</label><input id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code" required><button class="btn primary">Sign in</button> <button type="button" class="btn" data-act="restart">Use a different email</button></form>`
+      : `<form data-form="email"><label for="email">Email</label><input id="email" type="email" autocomplete="email" required value="${esc(email)}"><button class="btn primary">Email me a code</button>${C.google ? ' <button type="button" class="btn" data-act="google">Sign in with Google</button>' : ''}</form>`}
+    ${msg ? `<p class="err">${esc(msg)}</p>` : ''}<p class="msg" style="margin-top:16px"><a href="?demo">See the dashboard with demo data</a></p>`);
+}
+async function load() {
+  if (DEMO) { render(demo(days)); return; }
+  if (!sb) { card('<h2>Online features are off</h2><p class="msg">Fill in config.js with the Supabase project values first.</p>'); return; }
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { showSignIn(); return; }
+  const { data, error } = await sb.rpc('admin_stats', { days });
+  if (!error) { render(data); return; }
+  const me = session.user && session.user.email;
+  if (/not an admin/i.test(error.message)) card(`<h2>Not an admin yet</h2><p class="msg">You are signed in as <b>${esc(me || 'this account')}</b>, which is not on the admin list. In Supabase, open <b>SQL Editor → New query</b>, run this once, then press Refresh:</p>
+    <pre>insert into public.admins select id from auth.users where email = '${esc(me || 'you@example.com')}';</pre><p><button class="btn primary" data-act="refresh">Refresh</button> <button class="btn" data-act="signout">Sign out</button></p>`);
+  else if (/admin_stats|function|schema cache/i.test(error.message)) card(`<h2>Set up the stats first</h2><p class="msg">The database does not have the stats function yet. In Supabase, open <b>SQL Editor → New query</b>, paste the whole of <code>supabase/schema.sql</code> and press Run. Then press Refresh.</p><p><button class="btn primary" data-act="refresh">Refresh</button></p>`);
+  else card(`<h2>Could not load the stats</h2><p class="err">${esc(error.message)}</p><p><button class="btn primary" data-act="refresh">Try again</button></p>`);
+}
+document.addEventListener('submit', async e => {
+  e.preventDefault(); const f = e.target.dataset.form;
+  if (f === 'email') { email = $('#email').value.trim(); const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } }); if (error) return showSignIn(error.message); codeSent = true; showSignIn(); }
+  if (f === 'code') { const { error } = await sb.auth.verifyOtp({ email, token: $('#code').value.trim(), type: 'email' }); if (error) return showSignIn(error.message); codeSent = false; load(); }
+});
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.days) { days = +b.dataset.days; load(); }
+  const a = b.dataset.act;
+  if (a === 'refresh') load();
+  if (a === 'signout') { await sb.auth.signOut(); codeSent = false; showSignIn(); }
+  if (a === 'restart') { codeSent = false; showSignIn(); }
+  if (a === 'google') sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
+});
+if (sb) sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_IN') load(); });
+
+// ---- made-up numbers for ?demo, shaped like the real answer
+function demo(d) {
+  let seed = 7; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const today = new Date(), daily = Array.from({ length: d }, (_, k) => { const t = new Date(today); t.setDate(t.getDate() - (d - 1 - k)); const grow = 20 + k * 2.2;
+    const active = Math.round(grow * (0.8 + r() * 0.4) * (t.getDay() % 6 === 0 ? 1.25 : 1)); return { day: t.toISOString().slice(0, 10), active, new: Math.round(active * (0.25 + r() * 0.15)), minutes: Math.round(active * (14 + r() * 8)) }; });
+  const sum = k => daily.reduce((a, x) => a + x[k], 0);
+  return { days: d, generated: new Date().toISOString(), daily,
+    totals: { dau: daily[d - 1].active, wau: Math.round(sum('active') / d * 3.1), mau: Math.round(sum('active') / d * 6.8), new: sum('new'), devices: sum('new') + 140, sessions: Math.round(sum('active') * 1.6), minutes: sum('minutes'), avg_session_min: 11.4, installed_pct: 37, accounts: 58 },
+    retention: { d1_cohort: sum('new'), d1_back: Math.round(sum('new') * 0.34), d7_cohort: Math.round(sum('new') * 0.7), d7_back: Math.round(sum('new') * 0.12) },
+    areas: { floor: 5200, staff: 640, requisition: 410, emergency: 980, 'zebra hunt': 1450, 'daily case': 760, menu: 520, 'reading room': 300, loadout: 180, casebook: 220 },
+    hours: Array.from({ length: 24 }, (_, h) => Math.round(40 + 260 * Math.max(0, Math.sin((h - 6) / 24 * Math.PI * 2)) + (h >= 19 && h <= 23 ? 220 : 0))),
+    runs: { started: 860, finished: 612, avg_shift: 3.4, avg_minutes: 24.5 }, careers: 190,
+    shifts: { 1: 118, 2: 162, 3: 141, 4: 86, 5: 48, 6: 27, 7: 14, 8: 16 },
+    hunt: { played: 1240, avg: 4.6 }, hunt_scores: { 0: 8, 1: 22, 2: 61, 3: 140, 4: 262, 5: 351, 6: 280, 7: 116 },
+    daily_case: { played: 540, won: 389, avg_score: 612 },
+    diffs: { student: 240, intern: 380, resident: 200, attending: 40 }, specs: { em: 410, gp: 220, paeds: 90, im: 70, surg: 40, cardio: 30 } };
+}
+load();
+})();
+</script>
+</body>
+</html>
