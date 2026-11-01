@@ -127,6 +127,6 @@ ${sections}
   fs.writeFileSync(path.join(OUT, 'index.html'), page({ title: 'Articles · Zebra Shift', desc: 'Guides to ECGs, bedside ultrasound, microscope slides, blood gases, lab panels and X-rays for emergency clinicians and the curious.', url: SITE + 'articles/', body: hub, img: `${SITE}articles/img/antstemi.jpg` }));
   urls.push(SITE + 'privacy.html');
   fs.writeFileSync(path.join(ROOT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `  <url><loc>${u}</loc><lastmod>${today}</lastmod></url>`).join('\n')}\n</urlset>\n`);
-  fs.writeFileSync(path.join(ROOT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE}sitemap.xml\n`);
+  fs.writeFileSync(path.join(ROOT, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /admin.html\nSitemap: ${SITE}sitemap.xml\n`);
   console.log('Wrote', GUIDES.length, 'guides,', Object.keys(READS).length, 'pictures, sitemap.xml and robots.txt');
 })();

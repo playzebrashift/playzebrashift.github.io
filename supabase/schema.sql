@@ -165,4 +165,98 @@ create or replace view public.report_inbox with (security_invoker = true) as
   order by r.created_at desc;
 revoke all on public.report_inbox from anon, authenticated;
 
+-- ---------------------------------------------------------------------------
+-- Anonymous play statistics for the admin dashboard (admin.html).
+-- Each device gets a random ID; no names, email addresses, answers or saves are stored.
+-- Anyone can add rows, nobody can read them directly: admin_stats() answers only for accounts in public.admins.
+create table if not exists public.play_events (
+  id bigint generated always as identity primary key,
+  at timestamptz not null default now(),
+  device text not null check (char_length(device) between 8 and 40),
+  session text not null check (char_length(session) between 8 and 40),
+  kind text not null check (kind in ('open', 'beat', 'run_start', 'run_end', 'hunt', 'daily', 'career')),
+  area text check (char_length(area) <= 24),
+  diff text check (char_length(diff) <= 20),
+  spec text check (char_length(spec) <= 20),
+  value integer check (value between -1 and 100000000),
+  secs integer check (secs between 0 and 86400),
+  installed boolean
+);
+create index if not exists play_events_at on public.play_events (at);
+create index if not exists play_events_device on public.play_events (device, at);
+alter table public.play_events enable row level security;
+drop policy if exists "play events add" on public.play_events;
+create policy "play events add" on public.play_events for insert to anon, authenticated
+  with check (at between now() - interval '5 minutes' and now() + interval '5 minutes');
+grant insert on public.play_events to anon, authenticated;
+
+-- Who may see the dashboard. Add yourself once in the SQL Editor (see README):
+--   insert into public.admins select id from auth.users where email = 'you@example.com';
+create table if not exists public.admins (user_id uuid primary key references auth.users on delete cascade);
+alter table public.admins enable row level security;
+revoke all on public.admins from anon, authenticated;
+
+-- Everything the dashboard shows, in one call. Days are counted in Jakarta time (WIB).
+create or replace function public.admin_stats(days integer default 30)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  tz constant text := 'Asia/Jakarta';
+  d integer := greatest(1, least(coalesce(days, 30), 180));
+  today date := (now() at time zone tz)::date;
+  since timestamptz := now() - make_interval(days => d);
+  res jsonb;
+begin
+  if not exists (select 1 from public.admins where user_id = auth.uid()) then
+    raise exception 'not an admin' using errcode = '42501';
+  end if;
+  with ev as (
+    select e.*, (e.at at time zone tz)::date as day from public.play_events e
+    where e.at > now() - make_interval(days => greatest(d, 31) + 8)
+  ), fs as (
+    select device, min((at at time zone tz)::date) as first_day from public.play_events group by device
+  ), rng as (select * from ev where at > since)
+  select jsonb_build_object(
+    'tz', 'WIB', 'days', d, 'generated', now(),
+    'totals', jsonb_build_object(
+      'dau', (select count(distinct device) from ev where at > now() - interval '1 day'),
+      'wau', (select count(distinct device) from ev where at > now() - interval '7 days'),
+      'mau', (select count(distinct device) from ev where at > now() - interval '30 days'),
+      'active', (select count(distinct device) from rng),
+      'new', (select count(*) from fs where first_day > today - d),
+      'devices', (select count(*) from fs),
+      'sessions', (select count(distinct session) from rng),
+      'minutes', (select coalesce(sum(secs), 0) / 60 from rng where kind = 'beat'),
+      'avg_session_min', (select round(avg(s) / 60.0, 1) from (select sum(secs) s from rng where kind = 'beat' group by session) x),
+      'installed_pct', (select round(100.0 * count(distinct device) filter (where installed) / nullif(count(distinct device), 0)) from rng where kind = 'open'),
+      'accounts', (select count(*) from public.profiles)),
+    'daily', (select coalesce(jsonb_agg(jsonb_build_object('day', g.day, 'active', coalesce(a.active, 0), 'new', coalesce(n.new, 0), 'minutes', coalesce(a.minutes, 0)) order by g.day), '[]'::jsonb)
+      from (select generate_series(today - (d - 1), today, interval '1 day')::date as day) g
+      left join (select day, count(distinct device) as active, coalesce(sum(secs) filter (where kind = 'beat'), 0) / 60 as minutes from ev group by day) a using (day)
+      left join (select first_day as day, count(*) as new from fs group by first_day) n using (day)),
+    'retention', (select jsonb_build_object(
+      'd1_cohort', count(*) filter (where f.first_day between today - d and today - 1),
+      'd1_back', count(*) filter (where f.first_day between today - d and today - 1
+        and exists (select 1 from ev e where e.device = f.device and e.day = f.first_day + 1)),
+      'd7_cohort', count(*) filter (where f.first_day between today - 6 - d and today - 7),
+      'd7_back', count(*) filter (where f.first_day between today - 6 - d and today - 7
+        and exists (select 1 from public.play_events e where e.device = f.device and (e.at at time zone tz)::date >= f.first_day + 7)))
+      from fs f),
+    'areas', (select coalesce(jsonb_object_agg(a, m), '{}'::jsonb) from (select coalesce(area, 'other') a, round(sum(secs) / 60.0) m from rng where kind = 'beat' group by 1) x),
+    'diffs', (select coalesce(jsonb_object_agg(k, n), '{}'::jsonb) from (select coalesce(diff, 'unknown') k, count(*) n from rng where kind = 'run_start' group by 1) x),
+    'specs', (select coalesce(jsonb_object_agg(k, n), '{}'::jsonb) from (select coalesce(spec, 'unknown') k, count(*) n from rng where kind = 'run_start' group by 1) x),
+    'runs', (select jsonb_build_object('started', count(*) filter (where kind = 'run_start'), 'finished', count(*) filter (where kind = 'run_end'),
+      'avg_shift', round(avg(value) filter (where kind = 'run_end'), 1), 'avg_minutes', round(avg(secs) filter (where kind = 'run_end') / 60.0, 1)) from rng),
+    'shifts', (select coalesce(jsonb_object_agg(s, n), '{}'::jsonb) from (select least(value, 10) s, count(*) n from rng where kind = 'run_end' and value >= 1 group by 1) x),
+    'hunt', (select jsonb_build_object('played', count(*), 'avg', round(avg(value), 1)) from rng where kind = 'hunt'),
+    'hunt_scores', (select coalesce(jsonb_object_agg(v, n), '{}'::jsonb) from (select value v, count(*) n from rng where kind = 'hunt' group by 1) x),
+    'daily_case', (select jsonb_build_object('played', count(*), 'won', count(*) filter (where area = 'won'), 'avg_score', round(avg(value))) from rng where kind = 'daily'),
+    'careers', (select count(*) from rng where kind = 'career'),
+    'hours', (select jsonb_agg(coalesce(x.n, 0) order by h) from generate_series(0, 23) h
+      left join (select extract(hour from at at time zone tz)::int hr, count(*) n from rng where kind = 'beat' group by 1) x on x.hr = h)
+  ) into res;
+  return res;
+end $$;
+revoke all on function public.admin_stats(integer) from public, anon;
+grant execute on function public.admin_stats(integer) to authenticated;
+
 notify pgrst, 'reload schema';

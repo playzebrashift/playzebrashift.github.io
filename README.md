@@ -75,6 +75,17 @@ The game is a Progressive Web App, so it can be packaged without rewriting it:
 
 Before submitting a medical-themed game, add a short disclaimer to the store listing that it is for education and entertainment, not clinical guidance.
 
+## Admin dashboard: active players and play time (one time)
+
+The game sends anonymous play statistics (a random ID per device, minutes spent in each part of the game, runs, Zebra Hunt and Case of the day results; see `privacy.html`). Only accounts on the admin list can see them, at **https://playzebrashift.github.io/admin.html**.
+
+1. **Update the database.** Open **SQL Editor → New query**, paste the whole of `supabase/schema.sql` again and click **Run**. It adds the statistics table and keeps everything already there.
+2. **Make yourself an admin.** Sign in once (in the game under **Friends & leaderboards**, or on the dashboard itself), then run this in **SQL Editor**, with your own email address:
+   ```sql
+   insert into public.admins select id from auth.users where email = 'you@example.com';
+   ```
+3. **Open the dashboard.** Go to `admin.html` and sign in with that account. Numbers appear as people play; days are counted in Jakarta time (WIB). To see the layout before there is any data, open `admin.html?demo`.
+
 ## Zebra Hunt and articles
 
 - **Zebra Hunt** is a one-minute daily mode: seven patients with four choices each, the same for everyone. Every day has one Zebra and one Unicorn in a shuffled order, and a case's rarity is revealed only once it is answered. It needs no career. Link straight to it with **https://playzebrashift.github.io/#hunt** (and to the Reading room with `#reads`).

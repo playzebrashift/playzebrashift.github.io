@@ -4126,7 +4126,8 @@ const rarShift=r=>Math.max(1,r.shift-(diffNow().lag||0));
 function startRun(){
   S.run={shift:1,rep:0,score:0,streak:0,perks:[],used:{},phase:'floor',beds:Array(bedCount()).fill(null),queue:[],toArrive:shiftSize(1),arrived:0,spawnT:0,nextGap:spawnGap(1),clock:0,
     shieldUsed:0,treated:0,earned:0,rarest:-1,rarestName:'',crashes:0,deaths:0,lwbs:0,saves:0,chat:{},gift:{},cons:{},vchat:{},buff:{},cameos:[],visitors:pickVisitors(),autoRoscUsed:false,emClock:0,emNext:90+Math.random()*60,em:null,emWins:0,nid:1};
-  S.run.rep=maxRep();
+  S.run.rep=maxRep();S.run.t0=Date.now();
+  tel('run_start',{diff:S.doctor&&S.doctor.diff,spec:S.doctor&&S.doctor.spec});
   S.meta.runs++;S.sel=null;
   if(tutWanted()){S.run.tut=true;placePatient(tutPatient())}else{spawn();spawn()}
 }
@@ -4383,6 +4384,7 @@ function endRun(){
   r.newBest=r.score>S.meta.best;
   if(r.newBest)S.meta.best=r.score;
   r.phase='over';achEvent('runend',{shift:r.shift,score:r.score});save();render();
+  tel('run_end',{value:r.shift,diff:S.doctor&&S.doctor.diff,secs:r.t0?Math.min(86400,Math.round((Date.now()-r.t0)/1000)):null});
 }
 function liveVitals(p){
   const d=D[p.d];let[hr,bp,rr,sp,t]=hidden(p)?MASK[d.n].v:d.v;let[sys,dia]=bp.split('/').map(Number);
@@ -5515,6 +5517,7 @@ function pzCtx(){
   if(S.screen==='daily'){const c=dailyCase(todayStr());return{kind:'daily',d:D[c.di],pt:c,st:dailyState(c.date),save:saveDaily,done:st=>{
     if(st.won)st.credited=creditCasebook(D[c.di].n);saveDaily();
     if(window.ZSOnline)ZSOnline.onDaily(c.date,st);
+    tel('daily',{value:st.score,area:st.won?'won':'missed'});
     achEvent('daily',{won:st.won,clues:dailyClues(st),wrong:dailyWrong(st),streak:dailyStreak()})}}}
   if(S.screen==='chal')return chalCtx();
   if(S.screen==='custom')return customCtx();
@@ -5617,6 +5620,7 @@ function huntPick(k){
   const date=todayStr(),st=huntState(date),i=st.r.length,set=huntSet(date);if(i>=set.length||S.ui.huntRev)return;
   const n=set[i].opts[k],ok=n===D[set[i].di].n;
   st.r.push({n,ok});S.ui.huntRev=true;saveHunt();sfx(ok?'right':'wrong');
+  if(huntDone(st))tel('hunt',{value:huntScore(st)});
   if(ok&&set[i].t>=3)setTimeout(()=>sfx('jingle',3),250);
   if(ok)creditCasebook(D[set[i].di].n);
   render();
@@ -5654,6 +5658,30 @@ function renderHunt(){
   return`<div class="pagehead" style="margin:6px 0 14px"><div><span class="label">${esc(dateLabel(date))} · seven patients, the same for everyone today</span><h1>Zebra Hunt</h1></div><button class="btn" data-act="dailyback">${ic('back')}Menu</button></div>
    <div class="hunt">${main}<aside class="panel hside"><span class="label">Today's catches</span>${ladder}<p class="hint hsidehint">One of today's seven is a Unicorn and one is a Zebra. You find out which when you answer.</p></aside></div>`;
 }
+
+/* ---- Play statistics: anonymous counts for the developer's dashboard (admin.html; see privacy.html) ---- */
+// A random ID per device and per visit. No names, email addresses, answers or saves are sent.
+const telId=()=>{try{return crypto.randomUUID()}catch(e){return'id-'+Date.now().toString(36)+Math.random().toString(36).slice(2,12)}};
+const TEL={dev:null,ses:telId(),q:[],areas:{},timer:0};
+try{TEL.dev=localStorage.getItem('zebra-shift.device');if(!TEL.dev){TEL.dev=telId();localStorage.setItem('zebra-shift.device',TEL.dev)}}catch(e){TEL.dev=TEL.ses}
+const telOn=()=>location.protocol.startsWith('http')&&navigator.doNotTrack!=='1'&&!!(window.ZSOnline&&ZSOnline.logEvents);
+const telInstalled=()=>!!((window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone);
+function tel(kind,o={}){
+  if(!telOn())return;
+  TEL.q.push(Object.assign({device:TEL.dev,session:TEL.ses,kind,installed:telInstalled()},o));
+  clearTimeout(TEL.timer);TEL.timer=setTimeout(telFlush,kind==='open'?500:4000);
+}
+function telFlush(){if(TEL.q.length&&telOn())ZSOnline.logEvents(TEL.q.splice(0,50))}
+// Where the player is right now, for the time-spent breakdown
+function telArea(){
+  if(S.screen==='game'&&S.run)return musicScene()==='em'?'emergency':({shift:'floor',staff:'staff',req:'requisition',load:'loadout',book:'casebook',dept:'department'})[S.tab]||'floor';
+  return({menu:'menu',daily:'daily case',hunt:'zebra hunt',reads:'reading room',create:'creator',chal:'challenge',custom:'written case'})[S.screen]||String(S.screen||'menu').slice(0,24);
+}
+// every 15 seconds the game is visible, note the area; once a minute, send the minutes per area
+setInterval(()=>{if(document.hidden)return;const a=telArea();TEL.areas[a]=(TEL.areas[a]||0)+15;TEL.tick=(TEL.tick||0)+1;if(TEL.tick>=4)telBeat()},15000);
+function telBeat(){TEL.tick=0;for(const[a,secs]of Object.entries(TEL.areas))tel('beat',{area:a,secs});TEL.areas={};telFlush()}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&Object.keys(TEL.areas).length)telBeat()});
+addEventListener('load',()=>setTimeout(()=>tel('open',{area:(location.hash.slice(1).split('=')[0]||'').slice(0,24)||null}),1500));
 
 /* ---- Share links: a whole challenge or case travels inside the link itself ---- */
 const APP_URL=/github\.io$/.test(location.hostname)?location.origin+location.pathname:'https://playzebrashift.github.io/';
@@ -8100,7 +8128,7 @@ document.addEventListener('click',e=>{
       const d=S.draft,first=(d.first||'').trim(),last=(d.last||'').trim()||(first?'':'Reyes');
       const doc={first,last,gender:PRON[d.gender]?d.gender:'nb',name:`${first} ${last}`.trim(),...docPublic(d),facial:d.facial||'none',spec:d.spec,diff:d.diff};doc.glasses=(doc.eyewear||'none')!=='none';doc.cap=(doc.capStyle||'none')!=='none';
       if(d.editing){const s=STORE.slots[d.slot];s.doctor=doc;s.updated=Date.now();writeStore();if(S.slot===d.slot)S.doctor=doc;S.screen='menu';toast('Doctor updated');render()}
-      else{STORE.slots[d.slot]={doctor:doc,meta:freshMeta(),run:null,staff:freshStaff(),updated:Date.now()};writeStore();loadSlot(d.slot);toast('Welcome to the night shift, Dr. '+(last||first))}
+      else{STORE.slots[d.slot]={doctor:doc,meta:freshMeta(),run:null,staff:freshStaff(),updated:Date.now()};writeStore();loadSlot(d.slot);toast('Welcome to the night shift, Dr. '+(last||first));tel('career',{diff:doc.diff,spec:doc.spec})}
       break}
     case'copyexp':{const ta=$('#expcode');if(!ta)break;const txt=ta.value;
       try{navigator.clipboard.writeText(txt).then(()=>toast('Save code copied'),()=>{ta.select();toast('Press Ctrl+C to copy the selected code')})}catch(err){ta.select();toast('Press Ctrl+C to copy the selected code')}
