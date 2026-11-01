@@ -182,6 +182,8 @@ create table if not exists public.play_events (
   secs integer check (secs between 0 and 86400),
   installed boolean
 );
+-- added later: the link tag (?ref=…) a device first arrived through
+alter table public.play_events add column if not exists ref text check (char_length(ref) <= 40);
 create index if not exists play_events_at on public.play_events (at);
 create index if not exists play_events_device on public.play_events (device, at);
 alter table public.play_events enable row level security;
@@ -251,6 +253,11 @@ begin
     'hunt_scores', (select coalesce(jsonb_object_agg(v, n), '{}'::jsonb) from (select value v, count(*) n from rng where kind = 'hunt' group by 1) x),
     'daily_case', (select jsonb_build_object('played', count(*), 'won', count(*) filter (where area = 'won'), 'avg_score', round(avg(value))) from rng where kind = 'daily'),
     'careers', (select count(*) from rng where kind = 'career'),
+    'sources', (select coalesce(jsonb_agg(jsonb_build_object('ref', ref, 'new', n, 'd1_cohort', c1, 'd1_back', b1) order by n desc), '[]'::jsonb) from (
+      select coalesce(r.ref, 'direct') ref, count(*) n, count(*) filter (where f.first_day <= today - 1) c1,
+        count(*) filter (where f.first_day <= today - 1 and exists (select 1 from ev e where e.device = f.device and e.day = f.first_day + 1)) b1
+      from fs f left join lateral (select p.ref from public.play_events p where p.device = f.device and p.ref is not null order by p.at limit 1) r on true
+      where f.first_day > today - d group by 1) x),
     'hours', (select jsonb_agg(coalesce(x.n, 0) order by h) from generate_series(0, 23) h
       left join (select extract(hour from at at time zone tz)::int hr, count(*) n from rng where kind = 'beat' group by 1) x on x.hr = h)
   ) into res;

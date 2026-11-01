@@ -5680,6 +5680,8 @@ function renderHunt(){
 const telId=()=>{try{return crypto.randomUUID()}catch(e){return'id-'+Date.now().toString(36)+Math.random().toString(36).slice(2,12)}};
 const TEL={dev:null,ses:telId(),q:[],areas:{},timer:0};
 try{TEL.dev=localStorage.getItem('zebra-shift.device');if(!TEL.dev){TEL.dev=telId();localStorage.setItem('zebra-shift.device',TEL.dev)}}catch(e){TEL.dev=TEL.ses}
+// The tag on the link a device first arrived through (?ref=threads-id), for the dashboard's "where players come from"
+try{const m=(location.search.match(/[?&]ref=([A-Za-z0-9_-]{1,40})/)||[])[1];if(m&&!localStorage.getItem('zebra-shift.ref'))localStorage.setItem('zebra-shift.ref',m.toLowerCase());TEL.ref=localStorage.getItem('zebra-shift.ref')}catch(e){}
 const telOn=()=>location.protocol.startsWith('http')&&navigator.doNotTrack!=='1'&&!!(window.ZSOnline&&ZSOnline.logEvents);
 const telInstalled=()=>!!((window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone);
 function tel(kind,o={}){
@@ -5697,7 +5699,7 @@ function telArea(){
 setInterval(()=>{if(document.hidden)return;const a=telArea();TEL.areas[a]=(TEL.areas[a]||0)+15;TEL.tick=(TEL.tick||0)+1;if(TEL.tick>=4)telBeat()},15000);
 function telBeat(){TEL.tick=0;for(const[a,secs]of Object.entries(TEL.areas))tel('beat',{area:a,secs});TEL.areas={};telFlush()}
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&Object.keys(TEL.areas).length)telBeat()});
-addEventListener('load',()=>setTimeout(()=>tel('open',{area:(location.hash.slice(1).split('=')[0]||'').slice(0,24)||null}),1500));
+addEventListener('load',()=>setTimeout(()=>tel('open',{area:(location.hash.slice(1).split('=')[0]||'').slice(0,24)||null,ref:TEL.ref||null}),1500));
 
 /* ---- Share links: a whole challenge or case travels inside the link itself ---- */
 const APP_URL=/github\.io$/.test(location.hostname)?location.origin+location.pathname:'https://playzebrashift.github.io/';
